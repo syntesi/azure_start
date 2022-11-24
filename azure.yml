@@ -1,1 +1,40 @@
-test test test
+########################################################################
+#                                                                      #
+#  
+#                                                                      #
+########################################################################
+
+name: $(Date:yyyyMMdd)$(Rev:.r)
+trigger: none
+pr: none
+
+# make all generic vars available from now on
+variables: 
+- group: 'AzureGeneric'
+
+########################################################################
+#                                                                      #
+#                                                                      #
+########################################################################
+
+stages:
+- stage: Dev_infra
+  displayName: 'Dev Infra'
+  variables:
+  - group: Development
+  jobs:
+  - template: job-infra.yml  # Template reference
+    parameters: {EnvironmentName: 'Development'}
+
+
+- stage: Prod_infra
+  displayName: 'Prod Infra'
+  variables:
+  - group: Production
+  jobs:
+  - template: job-infra.yml  # Template reference
+    parameters: {EnvironmentName: 'Development'}
+
+
+
+
