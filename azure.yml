@@ -73,10 +73,7 @@ jobs:
 #####################################################################################
 #             Job: Create ResourceGroup                                             #
 #####################################################################################
-- job: 'CreatingResourceGroup'
-  pool:
-    # must use early expansion ${{ variables.xxx }} instead of runtime expansion $(xxx) here
-    name: '${{ variables.linuxAgentPoolName }}'
+- job: 'CreatingResourceGroup'  
   steps:
 
   # For dedicated subscriptions the resource group can be created any way you like. This pipeline uses Azure CLI.
