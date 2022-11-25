@@ -92,10 +92,7 @@ jobs:
   #####################################################################################
 - job: 'CreatingSQLServerUsingBicep'
   dependsOn:
-        - CreatingResourceGroup
-  pool:
-    # must use early expansion ${{ variables.xxx }} instead of runtime expansion $(xxx) here
-    name: '${{ variables.linuxAgentPoolName }}'
+        - CreatingResourceGroup  
   steps:
 
 
