@@ -154,7 +154,3 @@ jobs:
                         agentVirtualNetworkSubnetId=$(agentVirtualNetworkSubnetId) \
                         collation=$(collation) \
                         catalogCollation=$(catalogCollation)
-
-
-
-
