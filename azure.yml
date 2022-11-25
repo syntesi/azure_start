@@ -1,1 +1,294 @@
-test test test
+# This pipeline shows how you can create an Azure SQL server and all it's required resources.
+# See README.md in this repo for more information and full instructions.
+
+# Want instructions how to implement an example in your project? Check: https://confluence.dev.rabobank.nl/pages/viewpage.action?pageId=414193500
+
+#######################################################################################
+#  Name plus no auto-start and no automatic pull requests after changes in master     #
+#######################################################################################
+
+name: $(Date:yyyyMMdd)$(Rev:.r)
+trigger: none
+pr: none
+
+#######################################################################################
+#             Variables                                                               #
+#######################################################################################
+variables:
+
+  #####################################################################################
+  # Basic settings, Must Change                                                       #
+  #####################################################################################
+  unique:                           'yourteamname'                         # Only lowercase letters and numbers (No uppercase or special characters)
+  spnName:                          'reg-dev-eu-cccfeature'                # A valid deploy service principal created by CCC without " (SPN)" will be the Active Directory Admin for SQL server
+  ResourceGroupName:                'ft-sqlserver'                         # base name for resource group e.g. rg-dev-sqlexampleCCC-01.                                   
+  location:                         'westeurope'                           # region, e.g. westeurope or northeurope.
+  emailVulnerabilityReport:         '<YourMailBoxID>@rabobank.nl'          # Email address that receives the vulnerability scan reports of your SQL server. More information: https://docs.microsoft.com/en-us/azure/azure-sql/database/sql-vulnerability-assessment?tabs=azure-powershell
+  aadUserName:                      'eu.res.AADAzure<YourADGroupName>.us'  # AD Group name (Active Directory Group Name) to get access to the database
+
+  # CompliantAzureServices project related variables
+  azureCompliantServicesArtifactVersion: '0.0.149'
+
+  #####################################################################################
+  # SQL server Name, Must be Changed                                                  #
+  #####################################################################################
+  sqlServerName:                    'sqlserver$(unique)'                   # Unique Name of the sql server
+
+  #####################################################################################
+  # SQL database, Can optionally be changed                                           #
+  #####################################################################################
+  sqlDatabaseName:                  'sqldb$(unique)'                        # Database Name based on base name given above.
+  skuTier:                          'Standard'                              # Can also be changed after deployment. Choose if you want to have a purchasing model based on Flexible configruation with vCores (Severless -> "GeneralPurpose" or Provisioned -> Hyperscale or "BusinessCritical"). Preconfigured configuration with DTU ("Basic", "Standard" or "Premium") More information check: https://docs.microsoft.com/en-us/azure/azure-sql/database/purchasing-models            
+  skuName:                          'Standard'                              # Can also be changed after deployment. Only required when chosen for a Flexible configuration with vCores.
+  skuCapacity:                      '10'                                    # Can also be changed after deployment. In case of Standard SKU, this would be considered as number of DTU.
+  collation:                        'SQL_Latin1_General_CP1_CI_AS'          # Cannot be changed after deployment. Change this value in the YAML if your solution requires a different collation than the default value
+  catalogCollation:                 'SQL_Latin1_General_CP1_CI_AS'          # Cannot be changed after deployment
+
+  #####################################################################################
+  # Supporting resources settings, Can optionally be changed                          #
+  #####################################################################################
+  vnetName:                         'sqlvnet$(unique)'                      # Virtual Network Name
+  subnetName:                       'sql'                                   # Name of subnet for sql server
+  vnetCIDR:                         '10.0.0.0/16'                           # address space for the vnet
+  subnetCIDR:                       '10.0.0.0/24'                           # subnet range
+  storageAccountName:               'sqlsa$(unique)'                        # Vulnerability Assessment Storage Account Name.
+
+  #####################################################################################
+  # Basic settings, don't change                                                      #
+  #####################################################################################
+
+  System.Debug:                     'true'                                  # Debug logging on or off
+  linuxAgentPoolName:               'Rabo-Linux-Production'                 # Rabobank Azure Devops Linux agents
+  windowsAgentPoolName:             'Rabo-Windows-Production'               # Rabobank Azure Devops Windows agents
+
+#####################################################################################
+#               Basic settings, don't change                                        #
+#####################################################################################
+  artifactName:                     'AssignDirectoryReaderRole'             # you don't need to adjust this variable
+  urlResource:                      'https://dsmprdfrontdoor.azurefd.net'   # You don't need to adjust this variable
+  serviceConnectionName:            '${{variables.spnName}} (SPN)'          # SPN to logon with for the deployment. 
+  
+#####################################################################################
+#  Virtual Networks Information, May be Change                                       #
+#####################################################################################
+
+  # Azure DevOps Agents VNets to access to your sqlserver. 
+  # If TAS Subnet not needed - the value of paramteter should be updated as ''
+  # OR If any other Subnet need to be added to SQL Server firwall to allow access, needs to be updated manually in below parameter or adding a CLI/powershell script
+
+  agentVirtualNetworkSubnetId:  '/subscriptions/0cea37a3-6bdc-43cb-be5f-e6d390b05a3c/resourceGroups/rg-erconnect-Azdo-prd/providers/Microsoft.Network/virtualNetworks/vnet-erconnect-Azdo-prd-we/subnets/snet-workload-Azdo-prd-we'
+
+#######################################################################################
+#             Jobs                                                                    #
+#######################################################################################
+jobs:
+#####################################################################################
+#             Job: Create ResourceGroup                                             #
+#####################################################################################
+- job: 'CreatingResourceGroup'
+  pool:
+    # must use early expansion ${{ variables.xxx }} instead of runtime expansion $(xxx) here
+    name: '${{ variables.linuxAgentPoolName }}'
+  steps:
+
+  # For dedicated subscriptions the resource group can be created any way you like. This pipeline uses Azure CLI.
+  - task: AzureCLI@1
+    displayName: 'Create Resource Group - Dedicated Subscription model'
+    enabled: true
+    name: 'create_rg_dedicated'
+    inputs:
+      azureSubscription: $(serviceConnectionName)
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        az group create --name $(ResourceGroupName) --location $(location) --tags "ProjectName=$(unique)"
+
+  #####################################################################################
+  #             Job: Create SQL Server and backend Infrastructure                     #
+  #####################################################################################
+- job: 'CreatingSQLServerUsingBicep'
+  dependsOn:
+        - CreatingResourceGroup
+  pool:
+    # must use early expansion ${{ variables.xxx }} instead of runtime expansion $(xxx) here
+    name: '${{ variables.linuxAgentPoolName }}'
+  steps:
+
+
+  #Download specified version of the CCC compliant services modules
+  - task: UniversalPackages@0
+    displayName: 'Universal download'
+    enabled: true
+    inputs:
+      command: download
+      vstsFeed: 'CompliantAzureServices'
+      vstsFeedPackage: 'compliant-azure-services'
+      vstsPackageVersion: $(azureCompliantServicesArtifactVersion)
+      downloadDirectory: '$(System.DefaultWorkingDirectory)/examples/Templates'
+
+  # Possible PowerShell task to obtain object ID from AAD group/SPN
+  - task: AzureCLI@1
+    displayName: 'Retrieve object ID for SPN'
+    enabled: true
+    name: 'Get_SPN_Object_ID'
+    inputs:
+      azureSubscription: $(serviceConnectionName)
+      scriptLocation: 'inlineScript'
+      addSpnToEnvironment: true
+      inlineScript: |
+        # Get the ObjectId of the Service Principal (SPN) running this script.
+        # When 'addSpnToEnvironment' above is set to true, the AzureCLI task stores the appId in a bash variable misleadingly called "servicePrincipalId".
+        # We need the objectId of the Service Principal instead, so we use "az ad sp show" to get it.
+        spnObjectId=$(az ad app list --display-name $(spnName) --query "[0].{appId:appId}" -o tsv)
+        echo $spnObjectId 
+        echo "##vso[task.setvariable variable=spnObjectId]$spnObjectId"
+
+# Please note: SPN App Id works as SPN Object ID for SQL Server Auth, currently Object Id that above code is fetching is actually an App Id. 
+
+# ####################################################################################
+#             Job: Create SQLServer                                             #
+# ####################################################################################
+
+   # Deploy the example infrastructure (Azure services) using the bicep template
+  - task: AzureCLI@1
+    displayName: 'Deploy SQL Server Using Bicep template'
+    enabled: true
+    name: 'Create_SQL'
+    inputs:
+      azureSubscription: $(serviceConnectionName)
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+
+        az deployment group create \
+          --name azuresqlexampledeployment \
+          --resource-group $(ResourceGroupName) \
+          --template-file "$(System.DefaultWorkingDirectory)/examples/template.bicep" \
+          --parameters location=$(location) \
+                        skuName=$(skuName) \
+                        skuTier=$(skuTier) \
+                        skuCapacity=$(skuCapacity) \
+                        spnName=$(spnName) \
+                        spnObjectId=$(spnObjectId) \
+                        emailVulnerabilityReport=$(emailVulnerabilityReport) \
+                        sqlServerName=$(sqlServerName) \
+                        sqlDatabaseName=$(sqlDatabaseName) \
+                        storageAccountName=$(storageAccountName) \
+                        vnetName=$(vnetName) \
+                        subnetName=$(subnetName) \
+                        vnetAddressSpace=$(vnetCIDR) \
+                        subnetCIDR=$(subnetCIDR) \
+                        agentVirtualNetworkSubnetId=$(agentVirtualNetworkSubnetId) \
+                        collation=$(collation) \
+                        catalogCollation=$(catalogCollation)
+
+# ##########################################################################################################
+# Jobs   - Enable System Assigned Identity for SQL Server    
+#        - Get System Assigned Identity ID
+#        - Assign Directory Reader Role to the Identity
+#        - Assign your deployment SPN (Service connection) as the SQL AAD admin
+# ##########################################################################################################
+
+- job: 'GetSQLIdentityPrincipalId'
+  dependsOn: 
+    - CreatingSQLServerUsingBicep
+  pool: 
+    name: '${{ variables.windowsAgentPoolName }}'
+  steps:
+
+  # Prepare Artifact to call CCC (DSM) APIs
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish Artifact: operations script'
+    inputs:
+      pathtoPublish: '$(Build.SourcesDirectory)/examples/Operations'
+      artifactName: ${{variables.artifactName}}
+  - task: DownloadBuildArtifacts@0
+    displayName: 'Download pipeline artifact of team'
+    inputs:
+      buildType: 'current'
+      downloadType: 'single'
+      artifactName: '${{variables.artifactName}}'
+      downloadPath: '$(System.ArtifactsDirectory)'
+
+  # Enable, get SQL system assigned identity and trigger the vulnerability scan
+  - task: AzurePowerShell@4
+    displayName: 'GetSQLIdentityPrincipalId'
+    inputs:
+      azureSubscription: '${{variables.serviceConnectionName}}'
+      ScriptType: 'InlineScript'
+      Inline: |
+          Write-Host "Enable System Assigned Identity."
+          $sql = (Get-AzSqlServer -ResourceGroupName $(ResourceGroupName) -ServerName $(sqlServerName))
+          $sqlid = $sql.Identity.PrincipalId.Guid
+          Write-Host "##vso[task.setvariable variable=sqlMIId;]$sqlid"
+
+          Write-Host "Start the Vulnerability Assessment Scan"
+          Start-AzSqlDatabaseVulnerabilityAssessmentScan -ResourceGroupName $(ResourceGroupName) -ServerName $(sqlServerName) -DatabaseName $(sqlDatabaseName)
+      azurePowerShellVersion: 'LatestVersion'
+
+  # Call an API to assign "Directory Readers" role to the SQL system assigned MI
+  - task: AzureCLI@2
+    displayName: 'Assign Directory Readers role to the System Assigned Identity'
+    inputs:
+      azureSubscription: '${{variables.serviceConnectionName}}'
+      scriptType: ps
+      scriptPath: '$(System.ArtifactsDirectory)/${{variables.artifactName}}/CallDSM.ps1'
+      arguments: "-urlPath '/api/managedidentity/$(sqlMIId)/assigndirectoryreadersrole' -urlMethod 'POST' -jsonBody ''' ''' -urlResource '${{variables.urlResource}}' -variableStartname 'assignDirectoryReaderRole'"
+      addSpnToEnvironment: true
+
+##################################################################################################
+# Job: - Create other AAD user accounts (e.g. your .eu account) as external user in your SQL DB  #
+#                                                                         #
+##################################################################################################
+- job: 'CreateExternalAADUser'
+  dependsOn: 
+  - GetSQLIdentityPrincipalId
+  pool:
+    name:  '${{ variables.linuxAgentPoolName }}'
+  steps:  
+    # Get token to connect to SQL 
+  - task: AzureCLI@1
+    displayName: 'Get and publish oauth token'
+    name: 'get_tokenoid'
+    enabled: true
+    inputs:
+      azureSubscription: $(serviceConnectionName)
+      scriptLocation: inlineScript
+      inlineScript: |
+        #!/bin/bash
+        # get and publish token
+        SQLTKN=$(az account get-access-token --resource=https://database.windows.net/ --query accessToken --output tsv)
+        echo ${SQLTKN}
+        echo "##vso[task.setvariable variable=SQLTKN;isOutput=true]${SQLTKN}"
+
+  - task: AzurePowerShell@4
+    displayName: 'Use powershell to connect to db and Create AAD user'
+    enabled: true
+    name: 'create_AAD_user'
+    inputs:
+      azureSubscription: $(serviceConnectionName)
+      ScriptType: InlineScript
+      Inline: |
+        
+        Write-Verbose “Create SQL connectionstring”
+        $conn = New-Object System.Data.SqlClient.SQLConnection
+        $conn.ConnectionString = "Server=$(sqlServerName).database.windows.net;Initial Catalog=$(sqlDatabaseName);Encrypt=True;TrustServerCertificate=False;Connection Timeout=180"
+        $conn.AccessToken = "$(get_tokenoid.SQLTKN)"
+        Write-Verbose “Connect to database and execute SQL script”
+        
+        $conn.Open()
+        $query = "
+          IF NOT EXISTS (SELECT name
+                  FROM [sys].[database_principals]
+                  WHERE name  = '$(aadUserName)')
+          BEGIN
+              CREATE USER [$(aadUserName)] FROM EXTERNAL PROVIDER;
+          END
+        "
+
+        Write-Host $query
+        $command = New-Object -TypeName System.Data.SqlClient.SqlCommand($query, $conn)
+        $Result = $command.ExecuteNonQuery()
+        $conn.Close()
+
+      azurePowerShellVersion: LatestVersion
+
+
