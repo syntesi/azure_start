@@ -46,29 +46,8 @@ variables:
   subnetCIDR:                       '10.0.0.0/24'                           # subnet range
   storageAccountName:               'sqlsa$(unique)'                        # Vulnerability Assessment Storage Account Name.
 
-  #####################################################################################
-  # Basic settings, don't change                                                      #
-  #####################################################################################
 
-  #System.Debug:                     'true'                                  # Debug logging on or off
-  #linuxAgentPoolName:               'Linux-Production'                 #  Azure Devops Linux agents
-  #windowsAgentPoolName:             'Windows-Production'               #  Azure Devops Windows agents
 
-#####################################################################################
-#               Basic settings, don't change                                        #
-#####################################################################################
-  artifactName:                     'AssignDirectoryReaderRole'             # you don't need to adjust this variable
-  urlResource:                      'https://dsmprdfrontdoor.azurefd.net'   # You don't need to adjust this variable
-  serviceConnectionName:            '${{variables.spnName}} (SPN)'          # SPN to logon with for the deployment. 
-  
-#####################################################################################
-#  Virtual Networks Information, May be Change                                       #
-#####################################################################################
-
- 
-#######################################################################################
-#             Jobs                                                                    #
-#######################################################################################
 jobs:
 #####################################################################################
 #             Job: Create ResourceGroup                                             #
