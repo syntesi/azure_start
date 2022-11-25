@@ -1,7 +1,3 @@
-# This pipeline shows how you can create an Azure SQL server and all it's required resources.
-# See README.md in this repo for more information and full instructions.
-
-# Want instructions how to implement an example in your project? Check: https://confluence.dev.rabobank.nl/pages/viewpage.action?pageId=414193500
 
 #######################################################################################
 #  Name plus no auto-start and no automatic pull requests after changes in master     #
@@ -23,11 +19,8 @@ variables:
   spnName:                          'reg-dev-eu-cccfeature'                # A valid deploy service principal created by CCC without " (SPN)" will be the Active Directory Admin for SQL server
   ResourceGroupName:                'ft-sqlserver'                         # base name for resource group e.g. rg-dev-sqlexampleCCC-01.                                   
   location:                         'westeurope'                           # region, e.g. westeurope or northeurope.
-  emailVulnerabilityReport:         '<YourMailBoxID>@rabobank.nl'          # Email address that receives the vulnerability scan reports of your SQL server. More information: https://docs.microsoft.com/en-us/azure/azure-sql/database/sql-vulnerability-assessment?tabs=azure-powershell
-  aadUserName:                      'eu.res.AADAzure<YourADGroupName>.us'  # AD Group name (Active Directory Group Name) to get access to the database
+  aadUserName:                      'AADAzure<YourADGroupName>.us'        # AD Group name (Active Directory Group Name) to get access to the database
 
-  # CompliantAzureServices project related variables
-  azureCompliantServicesArtifactVersion: '0.0.149'
 
   #####################################################################################
   # SQL server Name, Must be Changed                                                  #
@@ -57,9 +50,9 @@ variables:
   # Basic settings, don't change                                                      #
   #####################################################################################
 
-  System.Debug:                     'true'                                  # Debug logging on or off
-  linuxAgentPoolName:               'Rabo-Linux-Production'                 # Rabobank Azure Devops Linux agents
-  windowsAgentPoolName:             'Rabo-Windows-Production'               # Rabobank Azure Devops Windows agents
+  #System.Debug:                     'true'                                  # Debug logging on or off
+  #linuxAgentPoolName:               'Linux-Production'                 #  Azure Devops Linux agents
+  #windowsAgentPoolName:             'Windows-Production'               #  Azure Devops Windows agents
 
 #####################################################################################
 #               Basic settings, don't change                                        #
@@ -72,12 +65,7 @@ variables:
 #  Virtual Networks Information, May be Change                                       #
 #####################################################################################
 
-  # Azure DevOps Agents VNets to access to your sqlserver. 
-  # If TAS Subnet not needed - the value of paramteter should be updated as ''
-  # OR If any other Subnet need to be added to SQL Server firwall to allow access, needs to be updated manually in below parameter or adding a CLI/powershell script
-
-  agentVirtualNetworkSubnetId:  '/subscriptions/0cea37a3-6bdc-43cb-be5f-e6d390b05a3c/resourceGroups/rg-erconnect-Azdo-prd/providers/Microsoft.Network/virtualNetworks/vnet-erconnect-Azdo-prd-we/subnets/snet-workload-Azdo-prd-we'
-
+ 
 #######################################################################################
 #             Jobs                                                                    #
 #######################################################################################
@@ -114,17 +102,6 @@ jobs:
   steps:
 
 
-  #Download specified version of the CCC compliant services modules
-  - task: UniversalPackages@0
-    displayName: 'Universal download'
-    enabled: true
-    inputs:
-      command: download
-      vstsFeed: 'CompliantAzureServices'
-      vstsFeedPackage: 'compliant-azure-services'
-      vstsPackageVersion: $(azureCompliantServicesArtifactVersion)
-      downloadDirectory: '$(System.DefaultWorkingDirectory)/examples/Templates'
-
   # Possible PowerShell task to obtain object ID from AAD group/SPN
   - task: AzureCLI@1
     displayName: 'Retrieve object ID for SPN'
@@ -141,8 +118,6 @@ jobs:
         spnObjectId=$(az ad app list --display-name $(spnName) --query "[0].{appId:appId}" -o tsv)
         echo $spnObjectId 
         echo "##vso[task.setvariable variable=spnObjectId]$spnObjectId"
-
-# Please note: SPN App Id works as SPN Object ID for SQL Server Auth, currently Object Id that above code is fetching is actually an App Id. 
 
 # ####################################################################################
 #             Job: Create SQLServer                                             #
@@ -180,115 +155,6 @@ jobs:
                         collation=$(collation) \
                         catalogCollation=$(catalogCollation)
 
-# ##########################################################################################################
-# Jobs   - Enable System Assigned Identity for SQL Server    
-#        - Get System Assigned Identity ID
-#        - Assign Directory Reader Role to the Identity
-#        - Assign your deployment SPN (Service connection) as the SQL AAD admin
-# ##########################################################################################################
 
-- job: 'GetSQLIdentityPrincipalId'
-  dependsOn: 
-    - CreatingSQLServerUsingBicep
-  pool: 
-    name: '${{ variables.windowsAgentPoolName }}'
-  steps:
-
-  # Prepare Artifact to call CCC (DSM) APIs
-  - task: PublishBuildArtifacts@1
-    displayName: 'Publish Artifact: operations script'
-    inputs:
-      pathtoPublish: '$(Build.SourcesDirectory)/examples/Operations'
-      artifactName: ${{variables.artifactName}}
-  - task: DownloadBuildArtifacts@0
-    displayName: 'Download pipeline artifact of team'
-    inputs:
-      buildType: 'current'
-      downloadType: 'single'
-      artifactName: '${{variables.artifactName}}'
-      downloadPath: '$(System.ArtifactsDirectory)'
-
-  # Enable, get SQL system assigned identity and trigger the vulnerability scan
-  - task: AzurePowerShell@4
-    displayName: 'GetSQLIdentityPrincipalId'
-    inputs:
-      azureSubscription: '${{variables.serviceConnectionName}}'
-      ScriptType: 'InlineScript'
-      Inline: |
-          Write-Host "Enable System Assigned Identity."
-          $sql = (Get-AzSqlServer -ResourceGroupName $(ResourceGroupName) -ServerName $(sqlServerName))
-          $sqlid = $sql.Identity.PrincipalId.Guid
-          Write-Host "##vso[task.setvariable variable=sqlMIId;]$sqlid"
-
-          Write-Host "Start the Vulnerability Assessment Scan"
-          Start-AzSqlDatabaseVulnerabilityAssessmentScan -ResourceGroupName $(ResourceGroupName) -ServerName $(sqlServerName) -DatabaseName $(sqlDatabaseName)
-      azurePowerShellVersion: 'LatestVersion'
-
-  # Call an API to assign "Directory Readers" role to the SQL system assigned MI
-  - task: AzureCLI@2
-    displayName: 'Assign Directory Readers role to the System Assigned Identity'
-    inputs:
-      azureSubscription: '${{variables.serviceConnectionName}}'
-      scriptType: ps
-      scriptPath: '$(System.ArtifactsDirectory)/${{variables.artifactName}}/CallDSM.ps1'
-      arguments: "-urlPath '/api/managedidentity/$(sqlMIId)/assigndirectoryreadersrole' -urlMethod 'POST' -jsonBody ''' ''' -urlResource '${{variables.urlResource}}' -variableStartname 'assignDirectoryReaderRole'"
-      addSpnToEnvironment: true
-
-##################################################################################################
-# Job: - Create other AAD user accounts (e.g. your .eu account) as external user in your SQL DB  #
-#                                                                         #
-##################################################################################################
-- job: 'CreateExternalAADUser'
-  dependsOn: 
-  - GetSQLIdentityPrincipalId
-  pool:
-    name:  '${{ variables.linuxAgentPoolName }}'
-  steps:  
-    # Get token to connect to SQL 
-  - task: AzureCLI@1
-    displayName: 'Get and publish oauth token'
-    name: 'get_tokenoid'
-    enabled: true
-    inputs:
-      azureSubscription: $(serviceConnectionName)
-      scriptLocation: inlineScript
-      inlineScript: |
-        #!/bin/bash
-        # get and publish token
-        SQLTKN=$(az account get-access-token --resource=https://database.windows.net/ --query accessToken --output tsv)
-        echo ${SQLTKN}
-        echo "##vso[task.setvariable variable=SQLTKN;isOutput=true]${SQLTKN}"
-
-  - task: AzurePowerShell@4
-    displayName: 'Use powershell to connect to db and Create AAD user'
-    enabled: true
-    name: 'create_AAD_user'
-    inputs:
-      azureSubscription: $(serviceConnectionName)
-      ScriptType: InlineScript
-      Inline: |
-        
-        Write-Verbose “Create SQL connectionstring”
-        $conn = New-Object System.Data.SqlClient.SQLConnection
-        $conn.ConnectionString = "Server=$(sqlServerName).database.windows.net;Initial Catalog=$(sqlDatabaseName);Encrypt=True;TrustServerCertificate=False;Connection Timeout=180"
-        $conn.AccessToken = "$(get_tokenoid.SQLTKN)"
-        Write-Verbose “Connect to database and execute SQL script”
-        
-        $conn.Open()
-        $query = "
-          IF NOT EXISTS (SELECT name
-                  FROM [sys].[database_principals]
-                  WHERE name  = '$(aadUserName)')
-          BEGIN
-              CREATE USER [$(aadUserName)] FROM EXTERNAL PROVIDER;
-          END
-        "
-
-        Write-Host $query
-        $command = New-Object -TypeName System.Data.SqlClient.SqlCommand($query, $conn)
-        $Result = $command.ExecuteNonQuery()
-        $conn.Close()
-
-      azurePowerShellVersion: LatestVersion
 
 
