@@ -11,35 +11,20 @@ pr: none
 #             Variables                                                               #
 #######################################################################################
 variables:
-
+- group: 'AzureDemoGeneric'
   #####################################################################################
   # Basic settings, Must Change                                                       #
   #####################################################################################
-  unique:                           'yourteamname'                         # Only lowercase letters and numbers (No uppercase or special characters)
-  spnName:                          'reg-dev-eu-cccfeature'                # A valid deploy service principal created by CCC without " (SPN)" will be the Active Directory Admin for SQL server
+  unique:                           'yourteamname'                         # Only lowercase letters and numbers (No uppercase or special characters)  
   ResourceGroupName:                'ft-sqlserver'                         # base name for resource group e.g. rg-dev-sqlexampleCCC-01.                                   
   location:                         'westeurope'                           # region, e.g. westeurope or northeurope.
-  aadUserName:                      'AADAzure<YourADGroupName>.us'        # AD Group name (Active Directory Group Name) to get access to the database
-
-
-  #####################################################################################
-  # SQL server Name, Must be Changed                                                  #
-  #####################################################################################
   sqlServerName:                    'sqlserver$(unique)'                   # Unique Name of the sql server
-
-  #####################################################################################
-  # SQL database, Can optionally be changed                                           #
-  #####################################################################################
   sqlDatabaseName:                  'sqldb$(unique)'                        # Database Name based on base name given above.
   skuTier:                          'Standard'                              # Can also be changed after deployment. Choose if you want to have a purchasing model based on Flexible configruation with vCores (Severless -> "GeneralPurpose" or Provisioned -> Hyperscale or "BusinessCritical"). Preconfigured configuration with DTU ("Basic", "Standard" or "Premium") More information check: https://docs.microsoft.com/en-us/azure/azure-sql/database/purchasing-models            
   skuName:                          'Standard'                              # Can also be changed after deployment. Only required when chosen for a Flexible configuration with vCores.
   skuCapacity:                      '10'                                    # Can also be changed after deployment. In case of Standard SKU, this would be considered as number of DTU.
   collation:                        'SQL_Latin1_General_CP1_CI_AS'          # Cannot be changed after deployment. Change this value in the YAML if your solution requires a different collation than the default value
   catalogCollation:                 'SQL_Latin1_General_CP1_CI_AS'          # Cannot be changed after deployment
-
-  #####################################################################################
-  # Supporting resources settings, Can optionally be changed                          #
-  #####################################################################################
   vnetName:                         'sqlvnet$(unique)'                      # Virtual Network Name
   subnetName:                       'sql'                                   # Name of subnet for sql server
   vnetCIDR:                         '10.0.0.0/16'                           # address space for the vnet
@@ -61,7 +46,7 @@ jobs:
     enabled: true
     name: 'create_rg_dedicated'
     inputs:
-      azureSubscription: $(serviceConnectionName)
+      azureSubscription: $(azureSubscription)
       scriptLocation: 'inlineScript'
       inlineScript: |
         az group create --name $(ResourceGroupName) --location $(location) --tags "ProjectName=$(unique)"
