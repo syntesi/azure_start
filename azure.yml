@@ -60,23 +60,6 @@ jobs:
   steps:
 
 
-  # Possible PowerShell task to obtain object ID from AAD group/SPN
-  - task: AzureCLI@1
-    displayName: 'Retrieve object ID for SPN'
-    enabled: true
-    name: 'Get_SPN_Object_ID'
-    inputs:
-      azureSubscription: $(serviceConnectionName)
-      scriptLocation: 'inlineScript'
-      addSpnToEnvironment: true
-      inlineScript: |
-        # Get the ObjectId of the Service Principal (SPN) running this script.
-        # When 'addSpnToEnvironment' above is set to true, the AzureCLI task stores the appId in a bash variable misleadingly called "servicePrincipalId".
-        # We need the objectId of the Service Principal instead, so we use "az ad sp show" to get it.
-        spnObjectId=$(az ad app list --display-name $(spnName) --query "[0].{appId:appId}" -o tsv)
-        echo $spnObjectId 
-        echo "##vso[task.setvariable variable=spnObjectId]$spnObjectId"
-
 # ####################################################################################
 #             Job: Create SQLServer                                             #
 # ####################################################################################
