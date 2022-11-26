@@ -1,16 +1,7 @@
-@description('The name of the SQL logical server.')
-param serverName string = uniqueString('sql', resourceGroup().id)
-
-@description('The name of the SQL Database.')
-param sqlDBName string = 'SampleDB'
-
-@description('Location for all resources.')
-param location string = resourceGroup().location
-
-@description('The administrator username of the SQL logical server.')
+param serverName string 
+param sqlDBName string 
+param location string 
 param administratorLogin string
-
-@description('The administrator password of the SQL logical server.')
 @secure()
 param administratorLoginPassword string
 
@@ -31,4 +22,5 @@ resource sqlDB 'Microsoft.Sql/servers/databases@2021-08-01-preview' = {
     name: 'Standard'
     tier: 'Standard'
   }
+
 }
