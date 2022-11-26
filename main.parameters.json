@@ -3,7 +3,7 @@
     "contentVersion": "1.0.0.0",
     "parameters": {
         "serverName": {
-            "value": "" // TODO: Fill in parameter value
+            "value": "sql-tiger-dev"
         },
         "sqlDBName": {
             "value": "SampleDB"
@@ -15,7 +15,7 @@
             "value": "sqladmin"
         },
         "administratorLoginPassword": {
-            "value": "" // TODO: Fill in parameter value
+            "value": "P@assWord" // TODO: Fill in parameter value
         }
     }
 }

@@ -1,9 +1,7 @@
-
-
-param serverName string = uniqueString('sql', resourceGroup().id)
-param sqlDBName string = 'SampleDB'
-param location string = 'westeurope'
-param administratorLogin string = 'sqladmin'
+param serverName string
+param sqlDBName string 
+param location string
+param administratorLogin string 
 @secure()
 param administratorLoginPassword string
 
