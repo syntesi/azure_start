@@ -11,7 +11,7 @@ pr: none
 #             Variables                                                               #
 #######################################################################################
 variables:
-  - group: test
+  - group: AzureDemoGeneric
 
 
 jobs:
