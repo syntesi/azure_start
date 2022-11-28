@@ -27,7 +27,7 @@ jobs:
     enabled: true
     name: 'create_rg_dedicated'
     inputs:
-      azureSubscription: $(azureSubscription)
+      azureSubscription: $(AzureSPNOTA)
       scriptLocation: 'inlineScript'
       inlineScript: |
         az group create --name $(ResourceGroupName) --location $(location) --tags "ProjectName=$(unique)"
