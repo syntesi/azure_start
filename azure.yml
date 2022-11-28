@@ -51,47 +51,4 @@ jobs:
       inlineScript: |
         az group create --name $(ResourceGroupName) --location $(location) --tags "ProjectName=$(unique)"
 
-  #####################################################################################
-  #             Job: Create SQL Server and backend Infrastructure                     #
-  #####################################################################################
-- job: 'CreatingSQLServerUsingBicep'
-  dependsOn:
-        - CreatingResourceGroup  
-  steps:
-
-
-# ####################################################################################
-#             Job: Create SQLServer                                             #
-# ####################################################################################
-
-   # Deploy the example infrastructure (Azure services) using the bicep template
-  - task: AzureCLI@1
-    displayName: 'Deploy SQL Server Using Bicep template'
-    enabled: true
-    name: 'Create_SQL'
-    inputs:
-      azureSubscription: $(serviceConnectionName)
-      scriptLocation: 'inlineScript'
-      inlineScript: |
-
-        az deployment group create \
-          --name azuresqlexampledeployment \
-          --resource-group $(ResourceGroupName) \
-          --template-file "$(System.DefaultWorkingDirectory)/examples/template.bicep" \
-          --parameters location=$(location) \
-                        skuName=$(skuName) \
-                        skuTier=$(skuTier) \
-                        skuCapacity=$(skuCapacity) \
-                        spnName=$(spnName) \
-                        spnObjectId=$(spnObjectId) \
-                        emailVulnerabilityReport=$(emailVulnerabilityReport) \
-                        sqlServerName=$(sqlServerName) \
-                        sqlDatabaseName=$(sqlDatabaseName) \
-                        storageAccountName=$(storageAccountName) \
-                        vnetName=$(vnetName) \
-                        subnetName=$(subnetName) \
-                        vnetAddressSpace=$(vnetCIDR) \
-                        subnetCIDR=$(subnetCIDR) \
-                        agentVirtualNetworkSubnetId=$(agentVirtualNetworkSubnetId) \
-                        collation=$(collation) \
-                        catalogCollation=$(catalogCollation)
+  
