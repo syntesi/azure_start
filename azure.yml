@@ -1,6 +1,6 @@
 
 #######################################################################################
-#  Name plus no auto-start and no automatic pull requests after changes in master     #
+#  X Name plus no auto-start and no automatic pull requests after changes in master     #
 #######################################################################################
 
 name: $(Date:yyyyMMdd)$(Rev:.r)
