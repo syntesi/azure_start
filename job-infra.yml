@@ -33,4 +33,4 @@ jobs:
           --name Azure-Start \
           --resource-group $(ResourceGroupName) \
           --template-file "$(System.DefaultWorkingDirectory)/main.bicep" \
-          --parameters main.parameters.json  location = 'westeurope'                      
+          --parameters main.parameters.json                      
