@@ -1,10 +1,10 @@
-param vnetName string = 'VNet1'
-param vnetAddressPrefix string = '10.0.0.0/16'
-param subnet1Prefix string = '10.0.0.0/24'
-param subnet1Name string = 'Subnet1'
-param subnet2Prefix string = '10.0.1.0/24'
-param subnet2Name string = 'Subnet2'
-param location string = resourceGroup().location
+param vnetName string 
+param vnetAddressPrefix string 
+param subnet1Prefix string 
+param subnet1Name string 
+param subnet2Prefix string 
+param subnet2Name string 
+param location string 
 
 resource vnet 'Microsoft.Network/virtualNetworks@2022-05-01' = {
   name: vnetName
