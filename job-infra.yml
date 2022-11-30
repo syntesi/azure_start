@@ -1,3 +1,6 @@
+parameters:
+  EnvironmentName: 'Default'
+
 jobs:
 #####################################################################################
 #             Job: Create ResourceGroup                                             #
